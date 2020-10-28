@@ -1,0 +1,68 @@
+version: '3'
+
+services:
+    test_redis:
+        image: redis:3                  # 指定服务镜像
+        container_name: test_redis      # 容器名称
+        restart: always                 # 重启方式
+        hostname: redis
+        command: redis-server /usr/local/etc/redis/redis.conf --appendonly yes
+        volumes:                        # 挂载数据卷
+            - /root/test/doker-config/redis/redis.conf:/usr/local/etc/redis/redis.conf
+        ports:                          # 映射端口
+            - "6379:6379"
+        networks:                       # 加入指定网络
+            - app-network
+
+    test_nginx:
+        image: nginx:stable-alpine      # 指定服务镜像
+        container_name: test_nginx    # 容器名称
+        restart: always                 # 重启方式
+        ports:                          # 映射端口
+            - "80:80"
+        volumes:                        # 挂载数据卷
+            - /etc/localtime:/etc/localtime
+            - /root/test/docker-config/nginx/conf.d:/etc/nginx/conf.d
+            - /root/test/docker-config/nginx/logs:/var/log/nginx
+        depends_on:                     # 启动顺序
+            - test_nodejs
+        networks:                       # 加入指定网络
+            - app-network
+    test_mysql:
+        image: mysql:5.7
+        container_name: test_mysql
+        restart: always
+        ports:                          # 映射端口
+            - "3306:3306"
+        environment:
+            - MYSQL_ROOT_PASSWORD=root
+            - MYSQL_USER=test           # 创建lovelp用户
+            - MYSQL_PASSWORD=123456     # 设置lovelp用户的密码
+            - MYSQL_DATABASE=test       # 创建初始数据库
+            - TZ=Asia/Shanghai            # 设置时区
+        volumes:                        # 挂载数据卷
+            - /root/mysql:/var/lib/mysql  # 为了数据持久化
+        command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+        networks:                       # 加入指定网络
+            - app-network
+    test_nodejs:
+        build:                          # 这里指的是我们刚刚撸的 Dockerfile 文件
+            context: .
+            dockerfile: Dockerfile
+        image: nodejs                   # 镜像名称
+        container_name: test_nodejs          # 容器名称
+        restart: always                 # 重启方式
+        depends_on:                     # 启动顺序
+            - test_redis
+            - test_mysql
+        links:                          # 容器连接
+            - test_redis:test_redis
+            - test_mysql:test_mysql
+        networks:                       # 加入指定网络
+            - app-network
+volumes:
+    certbot-etc:
+    certbot-var:          
+networks:  # 实现通信
+    app-network:
+        driver: bridge
